@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed Dial</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .tile:hover .delete-btn {
+            display: flex;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        #search {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .grid {
+            display: grid;
+            gap: 10px;
+            justify-content: center;
+        }
+        .tile {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 5px gray;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            padding: 10px;
+        }
+        .tile img {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 5px;
+        }
+        .tile button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 3px;
+        }
+        .settings-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+            width: 300px;
+        }
+        .modal input, .modal button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .context-menu {
+            position: absolute;
+            background: white;
+            box-shadow: 0 0 5px gray;
+            border-radius: 5px;
+            padding: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        .context-menu button {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            text-align: left;
+        }
+        .context-menu button:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+
+<button class="settings-btn" onclick="openSettings()">⚙️</button>
+
+
+<div class="container">
+    <h1>Speed Dial</h1>
+    <input type="text" id="search" placeholder="Поиск...">
+    <div class="grid" id="grid"></div>
+</div>
+
+<!-- Контекстное меню -->
+<div class="context-menu" id="context-menu">
+    <button id="edit-context">✏️ Редактировать</button>
+    <button id="delete-context">❌ Удалить</button>
+</div>
+
+<!-- Модальное окно для редактирования -->
+<div class="modal" id="edit-modal">
+    <div class="modal-content">
+        <h3>Редактировать сайт</h3>
+        <input type="text" id="edit-name" placeholder="Название">
+        <input type="text" id="edit-url" placeholder="URL">
+        <button onclick="saveEdit()">Сохранить</button>
+        <button onclick="closeEditModal()">Отмена</button>
+    </div>
+</div>
+
+<!-- Модальное окно настроек -->
+<div class="modal" id="settings-modal">
+    <div class="modal-content">
+        <h2>Настройки</h2>
+        <label for="columns">Количество колонок:</label>
+        <input type="number" id="columns" min="2" max="6" value="4">
+        
+        <h3>Добавить сайт</h3>
+        <input type="text" id="site-name" placeholder="Название сайта">
+        <input type="url" id="site-url" placeholder="URL">
+        <button onclick="addSite()">Добавить</button>
+
+        <h3>Экспорт / Импорт</h3>
+        <button onclick="exportSites()">📥 Экспорт</button>
+        <input type="file" id="import-file" accept=".json">
+        <button onclick="importSites()">📤 Импорт</button>
+
+        <button onclick="saveSettings()">Сохранить</button>
+    </div>
+</div>
+
+<script>
+    let sites = JSON.parse(localStorage.getItem('sites')) || [];
+    let columns = localStorage.getItem('columns') || 4;
+
+    function renderTiles() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+
+        sites.forEach((site, index) => {
+            const tile = document.createElement("div");
+            tile.className = "tile";
+            tile.innerHTML = `
+                <img src="https://www.google.com/s2/favicons?sz=64&domain=${site.url}" alt="icon">
+                <span>${site.name}</span>
+            `;
+//            <button onclick="event.stopPropagation(); removeSite(${index})">×</button>
+            tile.onclick = () => window.open(site.url, "_blank");
+
+            // Контекстное меню
+            tile.oncontextmenu = (event) => {
+                event.preventDefault();
+                showContextMenu(event, index);
+            };
+
+            grid.appendChild(tile);
+        });
+
+        localStorage.setItem('sites', JSON.stringify(sites));
+    }
+
+    function addSite() {
+        const name = document.getElementById("site-name").value;
+        const url = document.getElementById("site-url").value;
+        if (name && url) {
+            sites.push({ name, url });
+            document.getElementById("site-name").value = "";
+            document.getElementById("site-url").value = "";
+            renderTiles();
+        }
+    }
+
+    function removeSite(index) {
+        sites.splice(index, 1);
+        renderTiles();
+    }
+    function showContextMenu(event, index) {
+        event.preventDefault();
+        selectedIndex = index;
+        const contextMenu = document.getElementById("context-menu");
+        contextMenu.style.top = `${event.clientY}px`;
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.style.display = "block";
+    }
+    function openSettings() {
+        document.getElementById("settings-modal").style.display = "flex";
+        document.getElementById("columns").value = columns;
+    }
+
+    function saveSettings() {
+        columns = document.getElementById("columns").value;
+        localStorage.setItem("columns", columns);
+        document.getElementById("settings-modal").style.display = "none";
+        renderTiles();
+    }
+
+    function exportSites() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sites, null, 2));
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "sites.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        document.body.removeChild(downloadAnchor);
+    }
+
+    function importSites() {
+        const fileInput = document.getElementById("import-file");
+        if (fileInput.files.length === 0) {
+            alert("Выберите JSON-файл для импорта.");
+            return;
+        }
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const importedSites = JSON.parse(event.target.result);
+                if (Array.isArray(importedSites)) {
+                    sites = importedSites;
+                    localStorage.setItem("sites", JSON.stringify(sites));
+                    renderTiles();
+                } else {
+                    alert("Ошибка: Неверный формат файла.");
+                }
+            } catch (error) {
+                alert("Ошибка при чтении файла.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains("modal")) {
+            event.target.style.display = "none";
+        }
+    };
+
+    document.getElementById("search").addEventListener("input", function () {
+        const query = this.value.toLowerCase();
+        document.querySelectorAll(".tile").forEach(tile => {
+            const name = tile.querySelector("span").textContent.toLowerCase();
+            tile.style.display = name.includes(query) ? "flex" : "none";
+        });
+    });
+    document.addEventListener("click", (event) => {
+        document.getElementById("context-menu").style.display = "none";
+    });
+
+    document.getElementById("delete-context").addEventListener("click", () => {
+        if (selectedIndex !== null) {
+            removeSite(selectedIndex);
+            selectedIndex = null;
+        }
+    });
+
+    document.getElementById("edit-context").addEventListener("click", () => {
+        if (selectedIndex !== null) {
+            openEditModal(selectedIndex);
+        }
+    });
+
+    function openEditModal(index) {
+        document.getElementById("edit-name").value = sites[index].name;
+        document.getElementById("edit-url").value = sites[index].url;
+        document.getElementById("edit-modal").style.display = "flex";
+    }
+
+    function closeEditModal() {
+        document.getElementById("edit-modal").style.display = "none";
+    }
+
+    function saveEdit() {
+        if (selectedIndex !== null) {
+            sites[selectedIndex].name = document.getElementById("edit-name").value;
+            sites[selectedIndex].url = document.getElementById("edit-url").value;
+            localStorage.setItem('sites', JSON.stringify(sites));
+            renderTiles();
+            closeEditModal();
+        }
+    }
+    renderTiles();
+</script>
+
+</body>
+</html>

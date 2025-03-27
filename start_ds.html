@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed Dial</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        #search {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .grid {
+            display: grid;
+            gap: 10px;
+            justify-content: center;
+        }
+        .tile {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 5px gray;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            padding: 10px;
+            transition: transform 0.2s, opacity 0.2s;
+            user-select: none;
+        }
+        .tile img {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 5px;
+        }
+        .tile button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 3px;
+        }
+        .settings-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+            width: 300px;
+        }
+        .modal input, .modal button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .context-menu {
+            position: absolute;
+            background: white;
+            box-shadow: 0 0 5px gray;
+            border-radius: 5px;
+            padding: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        .context-menu button {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            text-align: left;
+        }
+        .context-menu button:hover {
+            background: #f0f0f0;
+        }
+        .modal button.primary {
+            background: #007bff;
+            color: white;
+        }
+        .modal button.secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .error-message {
+            color: red;
+            font-size: 12px;
+            display: none;
+        }
+        .tile:hover .delete-btn {
+            display: flex;
+        }
+        .tile.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .tile.over {
+            border: 2px dashed #007bff;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+<button class="settings-btn" onclick="openSettings()">⚙️</button>
+
+
+<div class="container">
+    <h1>Speed Dial</h1>
+    <input type="text" id="search" placeholder="Поиск...">
+    <div class="grid" id="grid"></div>
+</div>
+
+<!-- Контекстное меню -->
+<div class="context-menu" id="context-menu">
+    <button id="edit-context">✏️ Редактировать</button>
+    <button id="delete-context">❌ Удалить</button>
+</div>
+
+<!-- Модальное окно для редактирования -->
+<div class="modal" id="edit-modal">
+    <div class="modal-content">
+        <h3>Редактировать сайт</h3>
+        <input type="text" id="edit-name" placeholder="Название">
+        <input type="text" id="edit-url" placeholder="URL">
+        <button onclick="saveEdit()">Сохранить</button>
+        <button onclick="closeEditModal()">Отмена</button>
+    </div>
+</div>
+
+<!-- Модальное окно настроек -->
+<div class="modal" id="settings-modal">
+    <div class="modal-content">
+        <h2>Настройки</h2>
+        <label for="columns">Количество колонок:</label>
+        <input type="number" id="columns" min="2" max="6" value="4">
+        
+        <h3>Добавить сайт</h3>
+        <input type="text" id="site-name" placeholder="Название сайта">
+        <input type="url" id="site-url" placeholder="URL">
+        <button onclick="addSite()">Добавить</button>
+
+        <h3>Экспорт / Импорт</h3>
+        <button onclick="exportSites()">📥 Экспорт</button>
+        <input type="file" id="import-file" accept=".json">
+        <button onclick="importSites()">📤 Импорт</button>
+
+        <button onclick="saveSettings()">Сохранить</button>
+    </div>
+</div>
+
+<script>
+    let dragStartIndex;
+    let currentDragOverIndex = null;
+    window.addEventListener('scroll', () => {
+        scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    });
+    function handleDragStart(e) {
+        dragStartIndex = Number(e.target.closest('.tile').dataset.index);
+        e.target.closest('.tile').classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        const tile = e.target.closest('.tile');
+        if (!tile || tile.dataset.index === dragStartIndex.toString()) return;
+        
+        const dragEndIndex = Number(tile.dataset.index);
+        if (currentDragOverIndex !== dragEndIndex) {
+            currentDragOverIndex = dragEndIndex;
+            
+            // Подсветка целевой плитки
+            document.querySelectorAll('.tile').forEach(t => t.classList.remove('over'));
+            tile.classList.add('over');
+            
+            // Перемещение элементов в массиве
+            const draggedItem = sites[dragStartIndex];
+            const newSites = [...sites];
+            newSites.splice(dragStartIndex, 1);
+            newSites.splice(dragEndIndex, 0, draggedItem);
+            sites = newSites;
+            
+            // Плавное перемещение в DOM
+            const grid = document.getElementById("grid");
+            const dragNode = grid.children[dragStartIndex];
+            const overNode = grid.children[dragEndIndex];
+            
+            if (dragEndIndex > dragStartIndex) {
+                grid.insertBefore(dragNode, overNode.nextSibling);
+            } else {
+                grid.insertBefore(dragNode, overNode);
+            }
+            
+            // Обновить индексы после перемещения
+            Array.from(grid.children).forEach((tile, index) => {
+                tile.dataset.index = index;
+            });
+            
+            dragStartIndex = dragEndIndex;
+        }
+    }
+
+    function handleDragEnd() {
+        document.querySelectorAll('.tile').forEach(tile => {
+            tile.classList.remove('dragging', 'over');
+        });
+        localStorage.setItem('sites', JSON.stringify(sites));
+        currentDragOverIndex = null;
+    }
+
+    let sites = JSON.parse(localStorage.getItem('sites')) || [];
+    let columns = localStorage.getItem('columns') || 4;
+    let selectedIndex = null; // Добавлено объявление переменной
+
+    function validateURL(url) {
+        try {
+            new URL(url);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+    function getFaviconUrl(url = window.location.href) {
+        try {
+          // Если URL принадлежит текущему домену - ищем в мета-тегах
+            if (new URL(url).origin === window.location.origin) {
+                const iconLink = Array.from(document.querySelectorAll('link[rel*="icon"]'))
+                .find(link => link.href)?.href;
+        
+                if (iconLink) return iconLink;
+            }
+      
+            // Если не нашли в мета-тегах или URL другого домена - используем стандартный путь
+            const baseUrl = new URL(url);
+            return `${baseUrl.origin}/favicon.ico`;
+        } catch (e) {
+            console.error('Invalid URL:', e);
+            return null;
+        }
+    }
+
+    function renderTiles() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+
+        sites.forEach((site, index) => {
+            const siteUrl = site.url.startsWith('http') ? site.url : `https://${site.url}`;
+            const faviconUrl = getFaviconUrl(siteUrl) || 'fallback-icon.png';
+            const tile = document.createElement("div");
+            tile.className = "tile";
+            tile.innerHTML = `
+                <img src="${faviconUrl}" alt="icon" onerror="this.onerror=null;this.src='fallback-icon.png'">
+                <span>${site.name}</span>
+                <button class="delete-btn" onclick="event.stopPropagation(); removeSite(${index})">×</button>
+            `;
+            
+            tile.onclick = () => window.open(site.url, "_blank");
+
+            tile.oncontextmenu = (event) => {
+                event.preventDefault();
+                showContextMenu(event, index);
+            };
+            tile.addEventListener('dragstart', handleDragStart);
+            tile.addEventListener('dragover', handleDragOver);
+            tile.addEventListener('dragend', handleDragEnd);
+            tile.addEventListener('dragleave', (e) => {
+                e.target.closest('.tile').classList.remove('over');
+});
+
+
+            grid.appendChild(tile);
+        });
+
+        localStorage.setItem('sites', JSON.stringify(sites));
+        Array.from(grid.children).forEach((tile, index) => {
+            tile.dataset.index = index;
+        });
+    }
+
+    function addSite() {
+        const nameInput = document.getElementById("site-name");
+        const urlInput = document.getElementById("site-url");
+        
+        const name = nameInput.value.trim();
+        const url = urlInput.value.trim();
+
+
+
+        sites.push({ name, url });
+        //nameInput.value = "";
+        //urlInput.value = "";
+        renderTiles();
+    }
+
+    function removeSite(index) {
+        sites.splice(index, 1);
+        renderTiles();
+    }
+    function showContextMenu(event, index) {
+        event.preventDefault();
+        selectedIndex = index;
+        const contextMenu = document.getElementById("context-menu");
+        let x = event.clientX;
+        let y = event.clientY;
+        
+        // Получаем размеры меню
+        const menuWidth = contextMenu.offsetWidth;
+        const menuHeight = contextMenu.offsetHeight;
+        
+        // Проверяем границы окна
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+
+        // Корректируем позицию, если меню выходит за правый край
+        if (x + menuWidth > windowWidth) {
+            x = windowWidth - menuWidth;
+        }
+
+        // Корректируем позицию, если меню выходит за нижний край
+        if (y + menuHeight > windowHeight) {
+            y = windowHeight - menuHeight;
+        }
+
+        // Устанавливаем позицию
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+        contextMenu.style.display = 'block';
+    }
+    function openSettings() {
+        document.getElementById("settings-modal").style.display = "flex";
+        document.getElementById("columns").value = columns;
+    }
+
+    function saveSettings() {
+        columns = document.getElementById("columns").value;
+        localStorage.setItem("columns", columns);
+        document.getElementById("settings-modal").style.display = "none";
+        renderTiles();
+    }
+
+    function exportSites() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sites, null, 2));
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "sites.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        document.body.removeChild(downloadAnchor);
+    }
+
+    function importSites() {
+        const fileInput = document.getElementById("import-file");
+        
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(event) {
+            try {
+                const importedSites = JSON.parse(event.target.result);
+                
+                if (!Array.isArray(importedSites)) {
+                    throw new Error("Неверный формат данных");
+                }
+
+                const isValid = importedSites.every(site =>
+                    site.name && site.url && validateURL(site.url)
+                );
+
+                if (!isValid) {
+                    throw new Error("Некорректные данные в файле");
+                }
+
+                sites = importedSites;
+                localStorage.setItem("sites", JSON.stringify(sites));
+                renderTiles();
+                fileInput.value = "";
+            } catch (error) {
+                console.log(error.message);
+            }
+        };
+        
+        reader.readAsText(file);
+    }
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains("modal")) {
+            event.target.style.display = "none";
+        }
+    };
+    // Обновление позиции при скролле
+    window.addEventListener('scroll', () => {
+        contextMenu.style.display = 'none';
+    });
+    document.getElementById("search").addEventListener("input", function () {
+        const query = this.value.toLowerCase();
+        document.querySelectorAll(".tile").forEach(tile => {
+            const name = tile.querySelector("span").textContent.toLowerCase();
+            const url = tile.querySelector("img").getAttribute('domain') || '';
+            tile.style.display = (name.includes(query) || url.includes(query)) ? "flex" : "none";
+        });
+    });
+
+    document.addEventListener("click", (event) => {
+        document.getElementById("context-menu").style.display = "none";
+    });
+
+    document.getElementById("delete-context").addEventListener("click", () => {
+        if (selectedIndex !== null) {
+            removeSite(selectedIndex);
+            selectedIndex = null;
+        }
+    });
+
+    document.getElementById("edit-context").addEventListener("click", () => {
+        if (selectedIndex !== null) {
+            openEditModal(selectedIndex);
+        }
+    });
+
+    function openEditModal(index) {
+        document.getElementById("edit-name").value = sites[index].name;
+        document.getElementById("edit-url").value = sites[index].url;
+        document.getElementById("edit-modal").style.display = "flex";
+    }
+
+    function closeEditModal() {
+        document.getElementById("edit-modal").style.display = "none";
+    }
+
+    function saveEdit() {
+        if (selectedIndex !== null) {
+            sites[selectedIndex].name = document.getElementById("edit-name").value;
+            sites[selectedIndex].url = document.getElementById("edit-url").value;
+            localStorage.setItem('sites', JSON.stringify(sites));
+            renderTiles();
+            closeEditModal();
+        }
+    }
+    renderTiles();
+</script>
+
+</body>
+</html>
