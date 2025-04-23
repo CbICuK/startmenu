@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Speed Dial</title>
+    <title>Start</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
+            color: #f0f0f0;
+            background-color: #535353;
             text-align: center;
             margin: 0;
             padding: 0;
@@ -34,17 +35,18 @@
             padding: 20px;
         }
         #search {
-            width: 100%;
+            width: 90%;
             padding: 10px;
-            margin: 10px 0;
+            margin: 50px 0;
         }
         .grid {
             display: grid;
+            flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
         }
         .tile {
-            background: white;
+            background: rgb(53, 53, 53);
             border-radius: 10px;
             box-shadow: 0 0 5px gray;
             display: flex;
@@ -52,15 +54,25 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            position: relative;
+            /*position: relative;*/
             padding: 10px;
             transition: transform 0.2s, opacity 0.2s;
             user-select: none;
+            width: 100px;
+            height: 100px;
+            overflow: hidden;
         }
         .tile img {
             width: 50px;
             height: 50px;
             margin-bottom: 5px;
+        }
+        .tile span {
+            display: block;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .tile button {
             position: absolute;
@@ -92,18 +104,23 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
+            border: black;
+            font-family: Arial, sans-serif;
+            color: #f0f0f0;
             justify-content: center;
             align-items: center;
         }
         .modal-content {
-            background: white;
+            background: #535353;
+            font-family: Arial, sans-serif;
+            color: #f0f0f0;
             padding: 20px;
             border-radius: 5px;
             text-align: center;
             width: 300px;
         }
         .modal input, .modal button {
-            width: 100%;
+            width: 90%;
             padding: 10px;
             margin: 5px 0;
         }
@@ -140,9 +157,13 @@
             font-size: 12px;
             display: none;
         }
-        .tile:hover .delete-btn {
-            display: flex;
+        .tile:hover {
+            transform: scale(1.05);
         }
+        .tile:active {
+            cursor: grabbing;
+        }
+        
         .tile.dragging {
             opacity: 0.5;
             cursor: grabbing;
@@ -159,7 +180,7 @@
 
 
 <div class="container">
-    <h1>Speed Dial</h1>
+    <h1>Welcome</h1>
     <input type="text" id="search" placeholder="Поиск...">
     <div class="grid" id="grid"></div>
 </div>
@@ -176,6 +197,7 @@
         <h3>Редактировать сайт</h3>
         <input type="text" id="edit-name" placeholder="Название">
         <input type="text" id="edit-url" placeholder="URL">
+        <input type="text" id="edit-img" placeholder="URL">
         <button onclick="saveEdit()">Сохранить</button>
         <button onclick="closeEditModal()">Отмена</button>
     </div>
@@ -186,11 +208,12 @@
     <div class="modal-content">
         <h2>Настройки</h2>
         <label for="columns">Количество колонок:</label>
-        <input type="number" id="columns" min="2" max="6" value="4">
+        <input type="number" id="columns" min="1" max="50" value="4">
         
         <h3>Добавить сайт</h3>
         <input type="text" id="site-name" placeholder="Название сайта">
         <input type="url" id="site-url" placeholder="URL">
+        <input type="url" id="img-url" placeholder="URL">
         <button onclick="addSite()">Добавить</button>
 
         <h3>Экспорт / Импорт</h3>
@@ -299,15 +322,17 @@
 
         sites.forEach((site, index) => {
             const siteUrl = site.url.startsWith('http') ? site.url : `https://${site.url}`;
-            const faviconUrl = getFaviconUrl(siteUrl) || 'fallback-icon.png';
+            const faviconUrl = getFaviconUrl(siteUrl) || 'file:///home/example.ru/user/images/img.png';
             const tile = document.createElement("div");
             tile.className = "tile";
+            tile.draggable = true;
+            tile.dataset.index = index;
             tile.innerHTML = `
-                <img src="${faviconUrl}" alt="icon" onerror="this.onerror=null;this.src='fallback-icon.png'">
+                <img src="${site.img}" alt="icon" onerror="this.onerror=null;this.src='file:///home/example.ru/user/images/img.png'">
                 <span>${site.name}</span>
                 <button class="delete-btn" onclick="event.stopPropagation(); removeSite(${index})">×</button>
             `;
-            
+            //<img src="${faviconUrl}" alt="icon" onerror="this.onerror=null;this.src='file:///home/example.ru/user/images/img.png'">
             tile.onclick = () => window.open(site.url, "_blank");
 
             tile.oncontextmenu = (event) => {
@@ -334,13 +359,15 @@
     function addSite() {
         const nameInput = document.getElementById("site-name");
         const urlInput = document.getElementById("site-url");
-        
+        const imgInput = document.getElementById("img-url");
+
         const name = nameInput.value.trim();
         const url = urlInput.value.trim();
+        const img = imgInput.value.trim();
 
 
 
-        sites.push({ name, url });
+        sites.push({ name, url, img });
         //nameInput.value = "";
         //urlInput.value = "";
         renderTiles();
@@ -355,7 +382,7 @@
         selectedIndex = index;
         const contextMenu = document.getElementById("context-menu");
         let x = event.clientX;
-        let y = event.clientY;
+        let y = event.clientY+ window.pageYOffset;
         
         // Получаем размеры меню
         const menuWidth = contextMenu.offsetWidth;
@@ -366,14 +393,14 @@
         const windowHeight = window.innerHeight;
 
         // Корректируем позицию, если меню выходит за правый край
-        if (x + menuWidth > windowWidth) {
-            x = windowWidth - menuWidth;
-        }
+        //if (x + menuWidth > windowWidth) {
+        //    x = windowWidth - menuWidth;
+        //}
 
         // Корректируем позицию, если меню выходит за нижний край
-        if (y + menuHeight > windowHeight) {
-            y = windowHeight - menuHeight;
-        }
+        //if (y + menuHeight > windowHeight) {
+        //    y = windowHeight - menuHeight;
+        //}
 
         // Устанавливаем позицию
         contextMenu.style.left = `${x}px`;
@@ -442,10 +469,6 @@
             event.target.style.display = "none";
         }
     };
-    // Обновление позиции при скролле
-    window.addEventListener('scroll', () => {
-        contextMenu.style.display = 'none';
-    });
     document.getElementById("search").addEventListener("input", function () {
         const query = this.value.toLowerCase();
         document.querySelectorAll(".tile").forEach(tile => {
@@ -475,6 +498,7 @@
     function openEditModal(index) {
         document.getElementById("edit-name").value = sites[index].name;
         document.getElementById("edit-url").value = sites[index].url;
+        document.getElementById("edit-img").value = sites[index].img;
         document.getElementById("edit-modal").style.display = "flex";
     }
 
@@ -486,6 +510,7 @@
         if (selectedIndex !== null) {
             sites[selectedIndex].name = document.getElementById("edit-name").value;
             sites[selectedIndex].url = document.getElementById("edit-url").value;
+            sites[selectedIndex].img = document.getElementById("edit-img").value;
             localStorage.setItem('sites', JSON.stringify(sites));
             renderTiles();
             closeEditModal();
